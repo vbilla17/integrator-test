@@ -69,6 +69,68 @@ def transformAcc(qx,qy,qz,qw, acc_x, acc_y, acc_z):
     # qaq^-1
     qaq_inv = multiplyQuaternions(multiplyQuaternions(q, a), q_conj)
     return qaq_inv[1:]
+ 
+ '''
+ @param quat_XYZ array that contains all the quaternians during flight
+ @param accel_XYZ array that contains all the acceleration data during flight
+ @return allWorldAccels is type array containing vectors of world-centric accleration data
+ allQuats = [
+    quat_XYZ_timestamp0 = [x0, y0, z0],
+    quat_XYZ_timestamp1 = [x1, y1, z1]
+    ...
+    quant_XYZ_timestampN = [xN, yN, zN]
+ ]
+
+ allAccels = [
+
+ ]
+ '''
+
+ def transformAllAcc(allQuats, allAccles):
+    allWorldAccels = []
+    for i in range len(allQuats):
+        allWorldAccels.append(transformAcc(allQuats[i][0], allQuats[i][1], allQuats[i][2], \
+                        allAccels[i][0], allAccels[i][1], allAccels[i][2]) \
+                        )
+    return allWorldAccels
+
+
+'''
+Integrates allAccelData using corresponding timestamps (dx) in accel_timestamps
+
+allAccelData = [
+    accel_timestamp0 = [x, y, z],
+    accel_timestamp1 = [x, y, z],
+    ...
+    accel_timestampN = [x, y, z]
+]
+
+accel_timestamp = [
+    time0,
+    time1,
+    ...
+    timeN
+]
+'''
+def integrate(allAccelData, accel_timestamp):
+    # array of instantaneous velocity at each timestamp
+    vels = []
+    
+    for i in range(0, len(allAccelData) - 1):
+        #inst_vel is the instantaneous velocity between the two timestamps
+        inst_vel = [0,0,0]
+
+        inst_vel[0] += 0.5 * (accel_timestamp[i+1] - accel_timestamp[i]) * \
+                        (allAccelData[i][0] + allAccelData[i+1][0])
+
+        inst_vel[1] += 0.5 * (accel_timestamp[i+1] - accel_timestamp[i]) * \
+                        (allAccelData[i][1] + allAccelData[i+1][1])
+
+        inst_vel[2] += 0.5 * (accel_timestamp[i+1] - accel_timestamp[i]) * \
+                        (allAccelData[i][2] + allAccelData[i+1][2])
+        vels.append(inst_vel)
+
+    return vels
 
 def plotBno(qx, qy, qz, qw, bno_timestamps):
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -89,7 +151,7 @@ def plotAcc(acc_x, acc_y, acc_z, accel_timestamps):
     ax.plot(acc_x[0:2300], label='acc_x')
     ax.plot(acc_y[0:2300], label='acc_y')
     ax.plot(acc_z[0:2300], label='acc_z')
-
+            
 def main():
     accel_input_path = 'input/ctrl-v/ACCEL-trimmed.csv'
     bno_input_path = 'input/ctrl-v/BNO-trimmed.csv'
@@ -163,6 +225,35 @@ def main():
     print("BNO length: ", len(bno_timestamps))
 
     plotBno(quat_x, quat_y, quat_z, quat_w, bno_timestamps)
+
+    # // convert each of the quaternian one component arrays 
+    # into an array of quaternian objects represented by a length 3 vector
+    # this is basically typename quaternian allQuatData[]
+    '''
+    changing the format from
+    quant_x = [
+        scalar0,
+        scalar1,
+        ...
+        scalarN
+    ]
+    
+    to
+
+    allQuatData = [
+        quat_timestamp0 = [x, y, z],
+        quat_timestamp1 = [x, y, z],
+        ...
+        quat_timestampN = [x, y, z]
+]
+    '''
+    allQuatData = []
+    allAccellData = []
+    for i in range len(quat_x):
+        allQuatData.append([quat_x[i], quat_y[i], quat_z[i]])
+        allAccelData.append([ax[i], ay[i], az[i]])
+
+    integrate(transformAllAcc(allQuatData, allAccelData))
 
 if __name__ == "__main__":
     main()
