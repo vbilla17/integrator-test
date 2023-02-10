@@ -254,6 +254,6 @@ def main():
         allAccelData.append([ax[i], ay[i], az[i]])
 
     integrate(transformAllAcc(allQuatData, allAccelData))
-
+    
 if __name__ == "__main__":
     main()
