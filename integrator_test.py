@@ -13,8 +13,62 @@ def interpolate(qx, qy, qz, qw, ax, ay, az, bno_packets, accel_packets):
     ax_interpolated = []
     ay_interpolated = []
     az_interpolated = []
+    bno_timestamps_interpolated = []
+    accel_timestamps_interpolated = []
 
-    for i in range()
+    for i in range(first_packet_num, last_packet_num + 1):
+        # check if the current packet number is in bno_packets
+        if i in bno_packets:
+            idx = bno_packets.index(i)
+            qx_interpolated.append(qx[idx])
+            qy_interpolated.append(qy[idx])
+            qz_interpolated.append(qz[idx])
+            qw_interpolated.append(qw[idx])
+            bno_timestamps_interpolated.append(i)
+
+        # check if the current packet number is in accel_packets
+        if i in accel_packets:
+            idx = accel_packets.index(i)
+            ax_interpolated.append(ax[idx])
+            ay_interpolated.append(ay[idx])
+            az_interpolated.append(az[idx])
+            accel_timestamps_interpolated.append(i)
+
+        # use the latest value from either bno or accel until a new value arrives
+        else:
+            if bno_timestamps_interpolated:
+                qx_interpolated.append(qx_interpolated[-1])
+                qy_interpolated.append(qy_interpolated[-1])
+                qz_interpolated.append(qz_interpolated[-1])
+                qw_interpolated.append(qw_interpolated[-1])
+                bno_timestamps_interpolated.append(i)
+            if accel_timestamps_interpolated:
+                ax_interpolated.append(ax_interpolated[-1])
+                ay_interpolated.append(ay_interpolated[-1])
+                az_interpolated.append(az_interpolated[-1])
+                accel_timestamps_interpolated.append(i)
+
+    return qx_interpolated, qy_interpolated, qz_interpolated, qw_interpolated, ax_interpolated, ay_interpolated, az_interpolated, bno_timestamps_interpolated, accel_timestamps_interpolated
+
+def multiplyQuaternions(q1, q2):
+    # q1q2
+    w1, x1, y1, z1 = q1
+    w2, x2, y2, z2 = q2
+    return np.array([-x1*x2 - y1*y2 - z1*z2 + w1*w2,
+                     x1*w2 + y1*z2 - z1*y2 + w1*x2,
+                     -x1*z2 + y1*w2 + z1*x2 + w1*y2,
+                     x1*y2 - y1*x2 + z1*w2 + w1*z2])
+
+def transformAcc(qx,qy,qz,qw, acc_x, acc_y, acc_z):
+    # Transform the accelerometer data into the world frame
+    # qaq^-1
+    q = [qw, qx, qy, qz]
+    q_conj = [qw,-qx, -qy, -qz]
+    a = [0, acc_x, acc_y, acc_z]
+
+    # qaq^-1
+    qaq_inv = multiplyQuaternions(multiplyQuaternions(q, a), q_conj)
+    return qaq_inv[1:]
 
 def plotBno(qx, qy, qz, qw, bno_timestamps):
     fig, ax = plt.subplots(figsize=(10, 8))
