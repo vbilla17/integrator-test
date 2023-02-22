@@ -1,0 +1,1 @@
+Packet #,Checksum Status,Output Checksum,magic1,magic2,state,typeID,PAD,PAD,pwr_ctr,flight_ctr,checksum,magic3,gyrox,gyroy,gyroz,ax,ay,az,delanx,delany,delanz,temp,datacnt,PAD,PAD,Packet (hex)

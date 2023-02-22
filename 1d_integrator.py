@@ -14,10 +14,8 @@ def integrateAccel(az, accel_timestamps):
     for i in range(1, len(accel_timestamps)):
         current_accel = az[i]
         current_timestamp = accel_timestamps[i]
-        delta_t = (current_timestamp - last_timestamp)  # convert milliseconds to seconds
-        # current_vel += delta_t * (last_accel + current_accel) / 2 - (gravVal(current_alt) * delta_t**2) / 2
+        delta_t = (current_timestamp - last_timestamp)
         current_vel += delta_t * ((last_accel + current_accel) - (2 * gravVal(current_alt))) / 2
-        # print(gravVal(current_alt))
         last_accel = current_accel
         last_timestamp = current_timestamp
         velocities.append(current_vel)
@@ -47,72 +45,81 @@ def gravVal(h):
     # Return gravity in ft/s^2
     return gSurf*mToFt*math.pow( (rActual*1000*mToFt)/(h + rActual*1000*mToFt), 2 )
 
-def correctTimestamps(accel_timestamps):
-    first_timestamp = accel_timestamps[0]
+def correctTimestamps(timestamps, conversion, offset):
+    # print(timestamps[0])
+    for i in range(0, len(timestamps)):
+        timestamps[i] *= conversion
+        timestamps[i] += offset
+    # print(timestamps[0])
 
-    for i in range(0, len(accel_timestamps)):
-        accel_timestamps[i] -= first_timestamp
-        accel_timestamps[i] *= 0.000001
+def trimData(data, timestamps, start_time, end_time, offset):
+    us_to_s = 0.000001
 
-def trimAccel(az, accel_timestamps, start_time, end_time):
-    for i in range(0, len(accel_timestamps)):
-        if accel_timestamps[i] <= start_time:
+    correctTimestamps(timestamps, us_to_s, offset)
+
+    start_idx = 0
+    end_idx = len(data) - 1
+    for i in range(0, len(timestamps)):
+        if timestamps[i] <= start_time:
             start_idx = i
-        else: break
+        else:
+            break
 
-    for i in range(0, len(accel_timestamps)):
-        if accel_timestamps[i] <= end_time:
+    for i in range(0, len(timestamps)):
+        if timestamps[i] > end_time:
             end_idx = i
-        else: break
+            break
 
-    return az[start_idx:end_idx], accel_timestamps[start_idx:end_idx]
+    # print("Start idx: ", start_idx)
+    # print("End idx: ", end_idx)
+
+    data = data[start_idx:end_idx]
+    timestamps = timestamps[start_idx:end_idx]
+    # print("First timestamp: ", timestamps[0], "s")
+    # print("Last timestamp: ", timestamps[-1], "s")
+    return data, timestamps
+
 
 def correctAccel(az):
     for i in range(0, len(az)):
-        az[i] *= -0.03217405 # for adis z acce;
-        # az[i] *= 0.06284 # for kx z acce;
+        az[i] *= -0.03217405 # for adis z accel Jawbone;
+        # az[i] *= -0.032174 # for adis z accel Ctrl-V, Poise;
+        # az[i] *= 0.06284 # for kx z accel Jawbone;
+        # az[i] *= 0.059 # for kx test;
+        # az[i] *= 0.06602 # for kx z accel Ctrl-V;
+        # az[i] *= 1.6087 # for ADXL z accel Poise
+        # az[i] *= 1.5588 # for ADXL z accel T4
+        # az[i] *= 1.61 # for ADXL z accel test
 
 def correctGps(gps_alt):
     for i in range(0, len(gps_alt)):
-        gps_alt[i] *= 0.00328084
+        gps_alt[i] *= 0.00328084 # ZED-F9P conversion Jawbone, Ctrl-V
+        # gps_alt[i] *= 3280.84 # FGPMMOPA6H conversion Poise, T4
 
-def plotAcc(acc_x, acc_y, acc_z, accel_timestamps, title):
-    plt.figure(figsize=(10, 8))
-    plt.plot(accel_timestamps, acc_x, label='acc_x')
-    plt.plot(accel_timestamps, acc_y, label='acc_y')
-    plt.plot(accel_timestamps, acc_z, label='acc_z')
-    plt.legend()
-    plt.title(title)
-    plt.show()
+def correctBaro(baro_alt):
+    for i in range(0, len(baro_alt)):
+        baro_alt[i] *= 3.28084 # Baro conversion all flights
 
 def main():
     accel_input_path = 'input/Jawbone/ADIS-trimmed.csv'
+    # accel_input_path = 'input/Jawbone/ACCEL-trimmed.csv'
+    # accel_input_path = 'input/ctrl-v/ADIS-trimmed.csv'
+    # accel_input_path = 'input/ctrl-v/ACCEL-trimmed.csv'
+    # accel_input_path = 'input/poise/ADIS.csv'
+    # accel_input_path = 'input/poise/ACCEL.csv'
+    # accel_input_path = 'input/t4/ACCEL.csv'
+
+    print("Reading accel data from ", accel_input_path)
 
     accel_timestamps = []
     accel_packets = []
-    ax = []
-    ay = []
     az = []
-
-    with open(accel_input_path, 'r') as accel_file:
-        reader = csv.reader(accel_file)
-
-        headers = next(reader)
-        power_ctr_idx = headers.index('pwr_ctr')
-
-        row = next(reader)
-        first_timestamp = float(row[power_ctr_idx])
-
-    print("First Timestamp: ", first_timestamp)
 
     # reads in accel data and timestamps
     with open(accel_input_path, 'r') as accel_file:
         accel_reader = csv.reader(accel_file)
 
         headers = next(accel_reader)
-        flight_ctr_idx = headers.index('flight_ctr')
-        ax_idx = headers.index('ax')
-        ay_idx = headers.index('ay')
         az_idx = headers.index('az')
         checksum_idx = headers.index('Checksum Status')
         packet_idx = headers.index('Packet #')
@@ -120,19 +127,22 @@ def main():
 
         for row in accel_reader:
             if row[checksum_idx] == 'OK':
-                accel_timestamps.append(float(row[flight_ctr_idx]))
-                ax.append(float(row[ax_idx]))
-                ay.append(float(row[ay_idx]))
+                accel_timestamps.append(float(row[power_ctr_idx]))
                 az.append(float(row[az_idx]))
                 accel_packets.append(float(row[packet_idx]))
 
-        if not (len(accel_timestamps) == len(ax) == len(ay) == len(az)):
+        if not (len(accel_timestamps) == len(az)):
             print("Acceleration and timestamp lists are different lengths!!")
             return 1
         else:
             print("Accel data read!")
 
     gps_input_path = 'input/Jawbone/GPS-trimmed.csv'
+    # gps_input_path = 'input/ctrl-v/GPS-trimmed.csv'
+    # gps_input_path = 'input/poise/GPS.csv'
+    # gps_input_path = 'input/t4/GPS.csv'
+
+    print("Reading GPS data from ", gps_input_path)
 
     gps_timestamps = []
     gps_alt = []
@@ -141,48 +151,89 @@ def main():
         gps_reader = csv.reader(gps_file)
 
         headers = next(gps_reader)
-        flight_ctr_idx = headers.index('flight_ctr')
         checksum_idx = headers.index('Checksum Status')
-        alt_idx = headers.index('height')
+        alt_idx = headers.index('height') # Jawbone and Ctrl-V
+        # alt_idx = headers.index('altitude') # Poise and T4
+        power_ctr_idx = headers.index('pwr_ctr')
 
         for row in gps_reader:
             if row[checksum_idx] == 'OK':
-                gps_timestamps.append(float(row[flight_ctr_idx]))
+                gps_timestamps.append(float(row[power_ctr_idx]))
                 gps_alt.append(float(row[alt_idx]))
 
-    print("GPS data read!")
+        if not (len(gps_timestamps) == len(gps_alt)):
+            print("GPS and timestamp lists are different lengths!!")
+            return 1
+        else:
+            print("GPS data read!")
 
-    print("Accel length: ", len(accel_timestamps))
+    baro_input_path = 'input/Jawbone/BARO-trimmed.csv'
+    # baro_input_path = 'input/ctrl-v/BARO.csv'
+    # baro_input_path = 'input/poise/BARO.csv'
+    # baro_input_path = 'input/t4/BARO.csv'
 
-    correctTimestamps(accel_timestamps)
-    correctTimestamps(gps_timestamps)
+    print("Reading baro data from ", baro_input_path)
+
+    baro_timestamps = []
+    baro_alt = []
+
+    with open(baro_input_path, 'r') as baro_file:
+        baro_reader = csv.reader(baro_file)
+
+        headers = next(baro_reader)
+        checksum_idx = headers.index('Checksum Status')
+        alt_idx = headers.index('altitude')
+        power_ctr_idx = headers.index('pwr_ctr')
+
+        for row in baro_reader:
+            if row[checksum_idx] == 'OK':
+                baro_timestamps.append(float(row[power_ctr_idx]))
+                baro_alt.append(float(row[alt_idx]))
+
+        if not (len(baro_timestamps) == len(baro_alt)):
+            print("BARO and timestamp lists are different lengths!!")
+            return 1
+        else:
+            print("BARO data read!")
+
+    # Timescale parameters, format is [start time, end time, offset(us)]
+    Timescale = [0, 60, -36284.4] # for Jawbone
+    # Timescale = [0, 60, -66991.6] # for Ctrl-V
+    # Timescale = [-10,1000, 0] # for Poise
+    # Timescale = [-10,150, -84169.48] # for T4
+
+    az, accel_timestamps = trimData(az, accel_timestamps, Timescale[0], Timescale[1], Timescale[2])
+    gps_alt, gps_timestamps = trimData(gps_alt, gps_timestamps, Timescale[0], Timescale[1], Timescale[2])
+    baro_alt, baro_timestamps = trimData(baro_alt, baro_timestamps, Timescale[0], Timescale[1], Timescale[2])
 
     correctAccel(az)
     correctGps(gps_alt)
+    correctBaro(baro_alt)
 
-    az, accel_timestamps = trimAccel(az, accel_timestamps, 0, 60)
+    velocities, altitudes = integrateAccel(az, accel_timestamps)
+
+    print("Max Integrated Velocity: ", max(velocities), " at ", accel_timestamps[velocities.index(max(velocities))], "s")
+    print("Max Integrated Altitude: ", max(altitudes), " at ", accel_timestamps[altitudes.index(max(altitudes))], "s")
+
+    print("Max GPS Altitude: ", max(gps_alt), " at ", gps_timestamps[gps_alt.index(max(gps_alt))], "s")
+    print("Max Baro Altitude: ", max(baro_alt), " at ", baro_timestamps[baro_alt.index(max(baro_alt))], "s")
 
     plt.figure(figsize=(10, 8))
     plt.plot(accel_timestamps, az)
     plt.title("Accel")
-    plt.show()
-
-    velocities, altitudes = integrateAccel(az, accel_timestamps)
 
     plt.figure(figsize=(10, 8))
     plt.plot(accel_timestamps, velocities)
     plt.title("Velocity")
-    plt.show()
 
     plt.figure(figsize=(10, 8))
     plt.plot(accel_timestamps, altitudes, label = "integrated")
     plt.plot(gps_timestamps, gps_alt, label = "GPS")
+    plt.plot(baro_timestamps, baro_alt, label = "BARO")
     plt.title("Altitude")
     plt.legend()
-    plt.show()
 
-    print("Max Velocity: ", max(velocities), " at ", accel_timestamps[velocities.index(max(velocities))], "s")
-    print("Max Altitude: ", max(altitudes), " at ", accel_timestamps[altitudes.index(max(altitudes))], "s")
+    plt.show()
 
 if __name__ == "__main__":
     main()
