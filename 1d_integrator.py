@@ -2,11 +2,11 @@ import csv
 import matplotlib.pyplot as plt
 import math
 
-def integrateAccel(az, accel_timestamps):
+def integrateAccel(start_alt, az, accel_timestamps):
     last_accel = az[0]
     last_timestamp = accel_timestamps[0]
     current_vel = 0
-    current_alt = 2060
+    current_alt = start_alt
 
     velocities = [0]  # initial velocity is 0
     altitudes = [current_alt]
@@ -22,7 +22,7 @@ def integrateAccel(az, accel_timestamps):
         if i > 2:
             current_alt += delta_t * (velocities[-2] + velocities[-1]) / 2
         else:
-            current_alt = 2060  # reset altitude to initial value for first 3 iterations
+            current_alt = start_alt  # reset altitude to initial value for first 3 iterations
         altitudes.append(current_alt)
 
     return velocities, altitudes
@@ -79,35 +79,95 @@ def trimData(data, timestamps, start_time, end_time, offset):
     # print("Last timestamp: ", timestamps[-1], "s")
     return data, timestamps
 
+def endBurnIndex(accel_timestamps, end_burn_time):
+    end_idx = 0
+    for i in range(0, len(accel_timestamps)):
+        if accel_timestamps[i] < end_burn_time:
+            end_idx = i
+        else:
+            break
 
-def correctAccel(az):
+    return end_idx
+
+def correctAccel(az, flight, sensor):
+    if flight == "Jawbone":
+        if sensor == "ADIS":
+            conversion_factor = -0.03217405
+            # conversion_factor = -0.03303405 # corrected to match gps
+        elif sensor == "ACCEL":
+            conversion_factor = 0.06284
+            # conversion_factor = 0.060194 # corrected to match gps
+    elif flight == "ctrl-v":
+        if sensor == "ADIS":
+            conversion_factor = -0.032174
+        elif sensor == "ACCEL":
+            conversion_factor = 0.06602
+    elif flight == "poise":
+        if sensor == "ADIS":
+            conversion_factor = -0.032174
+        elif sensor == "ACCEL":
+            conversion_factor = 1.6087
+    elif flight == "t4":
+        if sensor == "ACCEL":
+            conversion_factor = 1.5588
+    else:
+        print("How did we get here???")
+        return
+
     for i in range(0, len(az)):
-        az[i] *= -0.03217405 # for adis z accel Jawbone;
-        # az[i] *= -0.032174 # for adis z accel Ctrl-V, Poise;
-        # az[i] *= 0.06284 # for kx z accel Jawbone;
-        # az[i] *= 0.059 # for kx test;
-        # az[i] *= 0.06602 # for kx z accel Ctrl-V;
-        # az[i] *= 1.6087 # for ADXL z accel Poise
-        # az[i] *= 1.5588 # for ADXL z accel T4
-        # az[i] *= 1.61 # for ADXL z accel test
+        az[i] *= conversion_factor
 
-def correctGps(gps_alt):
+def correctGps(gps_alt, flight):
+    if flight == "Jawbone" or "poise":
+        conversion_factor = 0.00328084 # ZED-F9P conversion Jawbone, Ctrl-V
+    elif flight == "poise" or "t4":
+        conversion_factor = 3280.84 # FGPMMOPA6H conversion Poise, T4
+    else:
+        print("How did we get here???")
+        return
+
     for i in range(0, len(gps_alt)):
-        gps_alt[i] *= 0.00328084 # ZED-F9P conversion Jawbone, Ctrl-V
-        # gps_alt[i] *= 3280.84 # FGPMMOPA6H conversion Poise, T4
+        gps_alt[i] *= conversion_factor
 
 def correctBaro(baro_alt):
     for i in range(0, len(baro_alt)):
         baro_alt[i] *= 3.28084 # Baro conversion all flights
 
-def main():
-    accel_input_path = 'input/Jawbone/ADIS-trimmed.csv'
-    # accel_input_path = 'input/Jawbone/ACCEL-trimmed.csv'
-    # accel_input_path = 'input/ctrl-v/ADIS-trimmed.csv'
-    # accel_input_path = 'input/ctrl-v/ACCEL-trimmed.csv'
-    # accel_input_path = 'input/poise/ADIS.csv'
-    # accel_input_path = 'input/poise/ACCEL.csv'
-    # accel_input_path = 'input/t4/ACCEL.csv'
+def isValidInput(flight, sensor):
+    if flight == "Jawbone" and sensor == "ADIS" or "ACCEL":
+        return True
+    elif flight == "ctrl-v" and sensor == "ADIS" or "ACCEL":
+        return True
+    elif flight == "poise" and sensor == "ADIS" or "ACCEL":
+        return True
+    elif flight == "t4" and sensor == "ACCEL":
+        return True
+    else:
+        print("Error: Invalid flight and sensor combination!!")
+        return False
+
+def inputAccel(flight, sensor):
+    if flight == "Jawbone":
+        if sensor == "ADIS":
+            accel_input_path = 'input/Jawbone/ADIS-trimmed.csv'
+        elif sensor == "ACCEL":
+            accel_input_path = 'input/Jawbone/ACCEL-trimmed.csv'
+    elif flight == "ctrl-v":
+        if sensor == "ADIS":
+            accel_input_path = 'input/ctrl-v/ADIS-trimmed.csv'
+        elif sensor == "ACCEL":
+            accel_input_path = 'input/ctrl-v/ACCEL-trimmed.csv'
+    elif flight == "poise":
+        if sensor == "ADIS":
+            accel_input_path = 'input/poise/ADIS.csv'
+        elif sensor == "ACCEL":
+            accel_input_path = 'input/poise/ACCEL.csv'
+    elif flight == "t4":
+        if sensor == "ACCEL":
+            accel_input_path = 'input/t4/ACCEL.csv'
+    else:
+        print("How did we get here???")
+        return
 
     print("Reading accel data from ", accel_input_path)
 
@@ -137,10 +197,17 @@ def main():
         else:
             print("Accel data read!")
 
-    gps_input_path = 'input/Jawbone/GPS-trimmed.csv'
-    # gps_input_path = 'input/ctrl-v/GPS-trimmed.csv'
-    # gps_input_path = 'input/poise/GPS.csv'
-    # gps_input_path = 'input/t4/GPS.csv'
+        return az, accel_packets, accel_timestamps
+
+def inputGps(flight):
+    if flight == "Jawbone":
+        gps_input_path = 'input/Jawbone/GPS-trimmed.csv'
+    elif flight == "ctrl-v":
+        gps_input_path = 'input/ctrl-v/GPS-trimmed.csv'
+    elif flight == "poise":
+        gps_input_path = 'input/poise/GPS.csv'
+    elif flight == "t4":
+        gps_input_path = 'input/t4/GPS.csv'
 
     print("Reading GPS data from ", gps_input_path)
 
@@ -152,8 +219,13 @@ def main():
 
         headers = next(gps_reader)
         checksum_idx = headers.index('Checksum Status')
-        alt_idx = headers.index('height') # Jawbone and Ctrl-V
-        # alt_idx = headers.index('altitude') # Poise and T4
+        if flight == "Jawbone" or "ctrl-v":
+            alt_idx = headers.index('height') # Jawbone and Ctrl-V
+        elif flight == "poise" or "t4":
+            alt_idx = headers.index('altitude') # Poise and T4
+        else:
+            print("How did we get here??")
+            return
         power_ctr_idx = headers.index('pwr_ctr')
 
         for row in gps_reader:
@@ -167,10 +239,20 @@ def main():
         else:
             print("GPS data read!")
 
-    baro_input_path = 'input/Jawbone/BARO-trimmed.csv'
-    # baro_input_path = 'input/ctrl-v/BARO.csv'
-    # baro_input_path = 'input/poise/BARO.csv'
-    # baro_input_path = 'input/t4/BARO.csv'
+        return gps_alt, gps_timestamps
+
+def inputBaro(flight):
+    if flight == "Jawbone":
+        baro_input_path = 'input/Jawbone/BARO-trimmed.csv'
+    elif flight == "ctrl-v":
+        baro_input_path = 'input/ctrl-v/BARO.csv'
+    elif flight == "poise":
+        baro_input_path = 'input/poise/BARO.csv'
+    elif flight == "t4":
+        baro_input_path = 'input/t4/BARO.csv'
+    else:
+        print("How did we get here???")
+        return
 
     print("Reading baro data from ", baro_input_path)
 
@@ -196,28 +278,31 @@ def main():
         else:
             print("BARO data read!")
 
+    return baro_alt, baro_timestamps
+
+def setTimescale(flight):
     # Timescale parameters, format is [start time, end time, offset(us)]
-    Timescale = [0, 60, -36284.4] # for Jawbone
-    # Timescale = [0, 60, -66991.6] # for Ctrl-V
-    # Timescale = [-10,1000, 0] # for Poise
-    # Timescale = [-10,150, -84169.48] # for T4
+    if flight == "Jawbone":
+        return [0, 60, -36284.4]
+    elif flight == "ctrl-v":
+        return [0, 50, -66991.6]
+    elif flight == "poise":
+        return [-10,1000, 0]
+    elif flight == "t4":
+        return [-10,150, -84169.48]
 
-    az, accel_timestamps = trimData(az, accel_timestamps, Timescale[0], Timescale[1], Timescale[2])
-    gps_alt, gps_timestamps = trimData(gps_alt, gps_timestamps, Timescale[0], Timescale[1], Timescale[2])
-    baro_alt, baro_timestamps = trimData(baro_alt, baro_timestamps, Timescale[0], Timescale[1], Timescale[2])
+def printMaxes(az, velocities, altitudes, accel_timestamps, gps_alt, gps_timestamps, baro_alt, baro_timestamps):
+    max_accel = max(az[0:endBurnIndex(accel_timestamps, 15)])
+    max_accel_g = max_accel * 0.031080950171567
 
-    correctAccel(az)
-    correctGps(gps_alt)
-    correctBaro(baro_alt)
-
-    velocities, altitudes = integrateAccel(az, accel_timestamps)
-
+    print("Max Accel: ", max_accel_g, "g at ", accel_timestamps[az.index(max_accel)], "s")
     print("Max Integrated Velocity: ", max(velocities), " at ", accel_timestamps[velocities.index(max(velocities))], "s")
     print("Max Integrated Altitude: ", max(altitudes), " at ", accel_timestamps[altitudes.index(max(altitudes))], "s")
 
     print("Max GPS Altitude: ", max(gps_alt), " at ", gps_timestamps[gps_alt.index(max(gps_alt))], "s")
     print("Max Baro Altitude: ", max(baro_alt), " at ", baro_timestamps[baro_alt.index(max(baro_alt))], "s")
 
+def makePlots(az, velocities, altitudes, accel_timestamps, gps_alt, gps_timestamps, baro_alt, baro_timestamps):
     plt.figure(figsize=(10, 8))
     plt.plot(accel_timestamps, az)
     plt.title("Accel")
@@ -234,6 +319,36 @@ def main():
     plt.legend()
 
     plt.show()
+
+def main():
+
+    flight = input("Enter the flight name to plot: ")
+    sensor = input("Enter the sensor type to use (ADIS/ACCEL): ")
+
+    if isValidInput(flight, sensor):
+
+        az, accel_packets, accel_timestamps = inputAccel(flight, sensor)
+        gps_alt, gps_timestamps = inputGps(flight)
+        baro_alt, baro_timestamps = inputBaro(flight)
+
+        timescale = setTimescale(flight)
+
+        az, accel_timestamps = trimData(az, accel_timestamps, timescale[0], timescale[1], timescale[2])
+        gps_alt, gps_timestamps = trimData(gps_alt, gps_timestamps, timescale[0], timescale[1], timescale[2])
+        baro_alt, baro_timestamps = trimData(baro_alt, baro_timestamps, timescale[0], timescale[1], timescale[2])
+
+        correctAccel(az, flight, sensor)
+        correctGps(gps_alt, flight)
+        correctBaro(baro_alt)
+
+        velocities, altitudes = integrateAccel(gps_alt[0], az, accel_timestamps)
+
+        printMaxes(az, velocities, altitudes, accel_timestamps, gps_alt, gps_timestamps, baro_alt, baro_timestamps)
+
+        makePlots(az, velocities, altitudes, accel_timestamps, gps_alt, gps_timestamps, baro_alt, baro_timestamps)
+    else:
+        print("ERROR: INVALID INPUT")
+        return 1
 
 if __name__ == "__main__":
     main()
