@@ -2,6 +2,91 @@ import csv
 import matplotlib.pyplot as plt
 import math
 
+
+class Vector3D:
+    def __init__(self, x, y, z):
+        self.x = x
+        self.y = y
+        self.z = z
+class Quaternion4D:
+    def __init__(self, w, x, y, z):
+        self.w = w
+        self.x = x
+        self.y = y
+        self.z = z
+
+def rotateVector(q, v):
+    ans = Vector3D(0, 0, 0)
+    q1 = multiplyQuaternionsByVec(q, v)
+    q2 = conjugateQuaternions(q)
+    q3 = multiplyQuaternions(q1, q2)
+    ans.x = q3.x
+    ans.y = q3.y
+    ans.z = q3.z
+    return ans
+def multiplyQuaternionsByVec(q, v):
+    ans = Quaternion4D(0, 0, 0, 0)
+    ans.w = -q.x * v.x - q.y * v.y - q.z * v.z
+    ans.x = q.w * v.x + q.y * v.z - q.z * v.y
+    ans.y = q.w * v.y - q.x * v.z + q.z * v.x
+    ans.z = q.w * v.z + q.x * v.y - q.y * v.x
+    return ans
+def conjugateQuaternions(q):
+    ans = Quaternion4D(0, 0, 0, 0)
+    ans.w = q.w
+    ans.x = -q.x
+    ans.y = -q.y
+    ans.z = -q.z
+    return ans
+def multiplyQuaternions(q1, q2):
+    ans = Quaternion4D(0, 0, 0, 0)
+    ans.w = q1.w * q2.w - q1.x * q2.x - q1.y * q2.y - q1.z * q2.z
+    ans.x = q1.w * q2.x + q1.x * q2.w + q1.y * q2.z - q1.z * q2.y
+    ans.y = q1.w * q2.y - q1.x * q2.z + q1.y * q2.w + q1.z * q2.x
+    ans.z = q1.w * q2.z + q1.x * q2.y - q1.y * q2.x + q1.z * q2.w
+    return ans
+def integrateAccelWithQuaternions(start_alt, ax, ay, az, accel_timestamps, quantVec):
+    last_accel_x = ax[0]
+    last_accel_y = ay[0]
+    last_accel_z = az[0]
+    last_quant = quantVec[0]
+    vec = Vector3D(last_accel_x, last_accel_y, last_accel_z)
+
+    last_timestamp = accel_timestamps[0]
+    current_vel = 0
+    current_alt = start_alt
+
+    velocities = [0]  # initial velocity is 0
+    altitudes = [current_alt]
+
+    for i in range(1, len(accel_timestamps)):
+        current_accel_x = ax[i]
+        current_accel_y = ay[i]
+        current_accel_z = az[i]
+        current_timestamp = accel_timestamps[i]
+        delta_t = (current_timestamp - last_timestamp)
+        newAccelWorld = rotateVector(last_quant, vec)
+
+        current_vel += delta_t * ((last_accel_z + newAccelWorld.z) - (2 * gravVal(current_alt))) / 2
+
+        last_accel_x = current_accel_x
+        last_accel_y = current_accel_y
+        last_accel_z = current_accel_z
+
+        vec.x = last_accel_x
+        vec.y = last_accel_y
+        vec.z = last_accel_z
+
+        last_timestamp = current_timestamp
+        velocities.append(current_vel)
+        if i > 2:
+            current_alt += delta_t * (velocities[-2] + velocities[-1]) / 2
+        else:
+            current_alt = start_alt  # reset altitude to initial value for first 3 iterations
+        altitudes.append(current_alt)
+
+    return velocities, altitudes
+
 def integrateAccel(start_alt, az, accel_timestamps):
     last_accel = az[0]
     last_timestamp = accel_timestamps[0]
@@ -146,12 +231,92 @@ def isValidInput(flight, sensor):
         print("Error: Invalid flight and sensor combination!!")
         return False
 
+def inputAccel3D(flight, sensor):
+    if flight == "Jawbone":
+        if sensor == "ADIS":
+            accel_input_path = 'input/jawbone/ADIS-trimmed.csv'
+        elif sensor == "ACCEL":
+            accel_input_path = 'input/jawbone/ACCEL-trimmed.csv'
+        elif sensor == "BNO":
+            accel_input_path = 'input/jawbone/BNO-trimmed.csv'
+    elif flight == "ctrl-v":
+        if sensor == "ADIS":
+            accel_input_path = 'input/ctrl-v/ADIS-trimmed.csv'
+        elif sensor == "ACCEL":
+            accel_input_path = 'input/ctrl-v/ACCEL-trimmed.csv'
+        elif sensor == "BNO":
+            accel_input_path = 'input/ctrl-v/BNO-trimmed.csv'
+    elif flight == "poise":
+        if sensor == "ADIS":
+            accel_input_path = 'input/poise/ADIS.csv'
+        elif sensor == "ACCEL":
+            accel_input_path = 'input/poise/ACCEL.csv'
+    elif flight == "t4":
+        if sensor == "ACCEL":
+            accel_input_path = 'input/t4/ACCEL.csv'
+    else:
+        print("How did we get here???")
+        return
+
+    print("Reading accel data from ", accel_input_path)
+
+    accel_timestamps = []
+    accel_packets = []
+
+    ax = []
+    ay = []
+    az = []
+    q = []
+
+    if sensor == "BNO":
+        with open(accel_input_path, 'r') as accel_file:
+            accel_reader = csv.reader(accel_file)
+
+            headers = next(accel_reader)
+            qw = headers.index('quantW')
+            qx = headers.index('quantX')
+            qy = headers.index('quantY')
+            qz = headers.index('quantZ')
+            checksum_idx = headers.index('Checksum Status')
+            temp = Quaternion4D(qw, qx, qy, qz)
+            for row in accel_reader:
+                if row[checksum_idx] == 'OK':
+                    q.append(Quaternion4D(row[qw], row[qw], row[qy], row[qz]))
+
+
+    # reads in accel data and timestamps
+    with open(accel_input_path, 'r') as accel_file:
+        accel_reader = csv.reader(accel_file)
+
+        headers = next(accel_reader)
+        ax_idx = headers.index('ax')
+        ay_idx = headers.index('ay')
+        az_idx = headers.index('az')
+        checksum_idx = headers.index('Checksum Status')
+        packet_idx = headers.index('Packet #')
+        power_ctr_idx = headers.index('pwr_ctr')
+
+        for row in accel_reader:
+            if row[checksum_idx] == 'OK':
+                accel_timestamps.append(float(row[power_ctr_idx]))
+                ax.append(float(row[ax_idx]))
+                ay.append(float(row[ay_idx]))
+                az.append(float(row[az_idx]))
+                accel_packets.append(float(row[packet_idx]))
+
+        if not (len(accel_timestamps) == len(az)):
+            print("Acceleration and timestamp lists are different lengths!!")
+            return 1
+        else:
+            print("Accel data read!")
+
+        return ax, ay, az, accel_packets, accel_timestamps, q
 def inputAccel(flight, sensor):
     if flight == "Jawbone":
         if sensor == "ADIS":
-            accel_input_path = 'input/Jawbone/ADIS-trimmed.csv'
+            accel_input_path = 'input/jawbone/ADIS-trimmed.csv'
         elif sensor == "ACCEL":
-            accel_input_path = 'input/Jawbone/ACCEL-trimmed.csv'
+            accel_input_path = 'input/jawbone/ACCEL-trimmed.csv'
     elif flight == "ctrl-v":
         if sensor == "ADIS":
             accel_input_path = 'input/ctrl-v/ADIS-trimmed.csv'
@@ -173,6 +338,9 @@ def inputAccel(flight, sensor):
 
     accel_timestamps = []
     accel_packets = []
+
+    ax = []
+    ay = []
     az = []
 
     # reads in accel data and timestamps
@@ -180,6 +348,8 @@ def inputAccel(flight, sensor):
         accel_reader = csv.reader(accel_file)
 
         headers = next(accel_reader)
+        ax_idx = headers.index('ax')
+        ay_idx = headers.index('ay')
         az_idx = headers.index('az')
         checksum_idx = headers.index('Checksum Status')
         packet_idx = headers.index('Packet #')
@@ -188,6 +358,8 @@ def inputAccel(flight, sensor):
         for row in accel_reader:
             if row[checksum_idx] == 'OK':
                 accel_timestamps.append(float(row[power_ctr_idx]))
+                ax.append(float(row[ax_idx]))
+                ay.append(float(row[ay_idx]))
                 az.append(float(row[az_idx]))
                 accel_packets.append(float(row[packet_idx]))
 
@@ -201,7 +373,7 @@ def inputAccel(flight, sensor):
 
 def inputGps(flight):
     if flight == "Jawbone":
-        gps_input_path = 'input/Jawbone/GPS-trimmed.csv'
+        gps_input_path = 'input/jawbone/GPS-trimmed.csv'
     elif flight == "ctrl-v":
         gps_input_path = 'input/ctrl-v/GPS-trimmed.csv'
     elif flight == "poise":
@@ -243,7 +415,7 @@ def inputGps(flight):
 
 def inputBaro(flight):
     if flight == "Jawbone":
-        baro_input_path = 'input/Jawbone/BARO-trimmed.csv'
+        baro_input_path = 'input/jawbone/BARO-trimmed.csv'
     elif flight == "ctrl-v":
         baro_input_path = 'input/ctrl-v/BARO.csv'
     elif flight == "poise":
@@ -327,21 +499,27 @@ def main():
 
     if isValidInput(flight, sensor):
 
-        az, accel_packets, accel_timestamps = inputAccel(flight, sensor)
+        q = Quaternion4D(0,0,0,0)
+        ax, ay, az, accel_packets, accel_timestamps, q = inputAccel3D(flight, sensor)
+        # az, accel_packets, accel_timestamps = inputAccel(flight, sensor)
         gps_alt, gps_timestamps = inputGps(flight)
         baro_alt, baro_timestamps = inputBaro(flight)
 
         timescale = setTimescale(flight)
 
+        ax, accel_timestamps = trimData(ax, accel_timestamps, timescale[0], timescale[1], timescale[2])
+        ay, accel_timestamps = trimData(ay, accel_timestamps, timescale[0], timescale[1], timescale[2])
         az, accel_timestamps = trimData(az, accel_timestamps, timescale[0], timescale[1], timescale[2])
         gps_alt, gps_timestamps = trimData(gps_alt, gps_timestamps, timescale[0], timescale[1], timescale[2])
         baro_alt, baro_timestamps = trimData(baro_alt, baro_timestamps, timescale[0], timescale[1], timescale[2])
 
+        correctAccel(ax, flight, sensor)
+        correctAccel(ay, flight, sensor)
         correctAccel(az, flight, sensor)
         correctGps(gps_alt, flight)
         correctBaro(baro_alt)
 
-        velocities, altitudes = integrateAccel(gps_alt[0], az, accel_timestamps)
+        velocities, altitudes = integrateAccelWithQuaternions(gps_alt[0], ax, ay, az, accel_timestamps, q)
 
         printMaxes(az, velocities, altitudes, accel_timestamps, gps_alt, gps_timestamps, baro_alt, baro_timestamps)
 
