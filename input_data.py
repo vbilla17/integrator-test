@@ -1,11 +1,11 @@
 import csv
 
 def isValidInput(flight, sensor):
-    if flight == "JAWBONE" and sensor == "ADIS" or "ACCEL":
+    if flight == "JAWBONE" and sensor == "ADIS" or sensor == "ACCEL":
         return True
-    elif flight == "CTRL-V" and sensor == "ADIS" or "ACCEL":
+    elif flight == "CTRL-V" and sensor == "ADIS" or sensor == "ACCEL":
         return True
-    elif flight == "POISE" and sensor == "ADIS" or "ACCEL":
+    elif flight == "POISE" and sensor == "ADIS" or sensor == "ACCEL":
         return True
     elif flight == "T4" and sensor == "ACCEL":
         return True
@@ -64,7 +64,7 @@ def inputAccel(flight, sensor):
         return az, accel_timestamps
 
 def inputGps(flight):
-    print(flight)
+    # print(flight)
     if flight == "JAWBONE":
         gps_input_path = 'input/jawbone/GPS-trimmed.csv'
     elif flight == "CTRL-V":
@@ -84,9 +84,9 @@ def inputGps(flight):
 
         headers = next(gps_reader)
         checksum_idx = headers.index('Checksum Status')
-        if flight == "JAWBONE" or "CTRL-V":
+        if flight == "JAWBONE" or flight == "CTRL-V":
             alt_idx = headers.index('height') # Jawbone and Ctrl-V
-        elif flight == "POISE" or "T4":
+        elif flight == "POISE" or flight == "T4":
             alt_idx = headers.index('altitude') # Poise and T4
         else:
             print("How did we get here??")
