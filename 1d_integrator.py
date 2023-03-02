@@ -182,19 +182,25 @@ def correctAccel(az, flight, sensor):
         elif sensor == "ACCEL":
             conversion_factor = 0.06284
             # conversion_factor = 0.060194 # corrected to match gps
+        elif sensor == "BNO":
+            conversion_factor = 3.28084
+
     elif flight == "ctrl-v":
         if sensor == "ADIS":
             conversion_factor = -0.032174
         elif sensor == "ACCEL":
             conversion_factor = 0.06602
+
     elif flight == "poise":
         if sensor == "ADIS":
             conversion_factor = -0.032174
         elif sensor == "ACCEL":
             conversion_factor = 1.6087
+
     elif flight == "t4":
         if sensor == "ACCEL":
             conversion_factor = 1.5588
+
     else:
         print("How did we get here???")
         return
@@ -219,9 +225,9 @@ def correctBaro(baro_alt):
         baro_alt[i] *= 3.28084 # Baro conversion all flights
 
 def isValidInput(flight, sensor):
-    if flight == "Jawbone" and sensor == "ADIS" or "ACCEL":
+    if flight == "Jawbone" and sensor == "ADIS" or "ACCEL" or "BNO":
         return True
-    elif flight == "ctrl-v" and sensor == "ADIS" or "ACCEL":
+    elif flight == "ctrl-v" and sensor == "ADIS" or "ACCEL" or "BNO":
         return True
     elif flight == "poise" and sensor == "ADIS" or "ACCEL":
         return True
@@ -495,7 +501,7 @@ def makePlots(az, velocities, altitudes, accel_timestamps, gps_alt, gps_timestam
 def main():
 
     flight = input("Enter the flight name to plot: ")
-    sensor = input("Enter the sensor type to use (ADIS/ACCEL): ")
+    sensor = input("Enter the sensor type to use (ADIS/ACCEL/BNO): ")
 
     if isValidInput(flight, sensor):
 
