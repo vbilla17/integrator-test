@@ -149,22 +149,22 @@ def isValidInput(flight, sensor):
 def inputAccel(flight, sensor):
     if flight == "Jawbone":
         if sensor == "ADIS":
-            accel_input_path = 'input/Jawbone/ADIS-trimmed.csv'
+            accel_input_path = './input/Jawbone/ADIS-trimmed.csv'
         elif sensor == "ACCEL":
-            accel_input_path = 'input/Jawbone/ACCEL-trimmed.csv'
+            accel_input_path = './input/Jawbone/ACCEL-trimmed.csv'
     elif flight == "ctrl-v":
         if sensor == "ADIS":
-            accel_input_path = 'input/ctrl-v/ADIS-trimmed.csv'
+            accel_input_path = './input/ctrl-v/ADIS-trimmed.csv'
         elif sensor == "ACCEL":
-            accel_input_path = 'input/ctrl-v/ACCEL-trimmed.csv'
+            accel_input_path = './input/ctrl-v/ACCEL-trimmed.csv'
     elif flight == "poise":
         if sensor == "ADIS":
-            accel_input_path = 'input/poise/ADIS.csv'
+            accel_input_path = './input/poise/ADIS.csv'
         elif sensor == "ACCEL":
-            accel_input_path = 'input/poise/ACCEL.csv'
+            accel_input_path = './input/poise/ACCEL.csv'
     elif flight == "t4":
         if sensor == "ACCEL":
-            accel_input_path = 'input/t4/ACCEL.csv'
+            accel_input_path = './input/t4/ACCEL.csv'
     else:
         print("How did we get here???")
         return
