@@ -17,6 +17,7 @@ def inputAccel(flight, sensor):
     if flight == "JAWBONE":
         if sensor == "ADIS":
             accel_input_path = 'input/jawbone/ADIS-trimmed.csv'
+            # accel_input_path = 'input/jawbone/accel2.csv'
         elif sensor == "ACCEL":
             accel_input_path = 'input/jawbone/ACCEL-trimmed.csv'
     elif flight == "CTRL-V":
@@ -39,29 +40,36 @@ def inputAccel(flight, sensor):
     print("Reading accel data from ", accel_input_path)
 
     accel_timestamps = []
-    az = []
+    accel_packets = []
+    accel = [[], [], []] # accel = [[ax], [ay], [az]]
 
     # reads in accel data and timestamps
     with open(accel_input_path, 'r') as accel_file:
         accel_reader = csv.reader(accel_file)
 
         headers = next(accel_reader)
+        ax_idx = headers.index('ax')
+        ay_idx = headers.index('ay')
         az_idx = headers.index('az')
         checksum_idx = headers.index('Checksum Status')
         power_ctr_idx = headers.index('pwr_ctr')
+        packet_idx = headers.index('Packet #')
 
         for row in accel_reader:
             if row[checksum_idx] == 'OK':
                 accel_timestamps.append(float(row[power_ctr_idx]))
-                az.append(float(row[az_idx]))
+                accel_packets.append(float(row[packet_idx]))
+                accel[0].append(float(row[ax_idx]))
+                accel[1].append(float(row[ay_idx]))
+                accel[2].append(float(row[az_idx]))
 
-        if not (len(accel_timestamps) == len(az)):
+        if not (len(accel_timestamps) == len(accel[0])):
             print("Acceleration and timestamp lists are different lengths!!")
             return 1
         else:
             print("Accel data read!")
 
-        return az, accel_timestamps
+        return accel, accel_packets, accel_timestamps
 
 def inputGps(flight):
     # print(flight)
@@ -123,6 +131,7 @@ def inputBaro(flight):
 
     baro_timestamps = []
     baro_alt = []
+    baro_packets = []
 
     with open(baro_input_path, 'r') as baro_file:
         baro_reader = csv.reader(baro_file)
@@ -131,11 +140,13 @@ def inputBaro(flight):
         checksum_idx = headers.index('Checksum Status')
         alt_idx = headers.index('altitude')
         power_ctr_idx = headers.index('pwr_ctr')
+        packet_idx = headers.index('Packet #')
 
         for row in baro_reader:
             if row[checksum_idx] == 'OK':
                 baro_timestamps.append(float(row[power_ctr_idx]))
                 baro_alt.append(float(row[alt_idx]))
+                baro_packets.append(float(row[packet_idx]))
 
         if not (len(baro_timestamps) == len(baro_alt)):
             print("BARO and timestamp lists are different lengths!!")
@@ -143,14 +154,15 @@ def inputBaro(flight):
         else:
             print("BARO data read!")
 
-    return baro_alt, baro_timestamps
+    return baro_alt, baro_packets, baro_timestamps
 
 def setTimescale(flight):
     # Timescale parameters, format is [start time, end time, offset(us)]
     if flight == "JAWBONE":
-        return [0, 60, -36284.4]
+        return [-5, 60, -36284.4]
     elif flight == "CTRL-V":
-        return [0, 50, -66991.6]
+        # return [-5, 50, -66991.6]
+        return [-5, 75, -66991.6] # attempt to stop integration before deployment dynamics
     elif flight == "POISE":
         return [-10,1000, 0]
     elif flight == "T4":

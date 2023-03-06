@@ -1,6 +1,6 @@
 import math
 
-def integrateAccel(start_alt, accel, accel_timestamps):
+def integrateAccelTrap(start_alt, accel, accel_timestamps):
     last_accel = accel[0]
     last_timestamp = accel_timestamps[0]
     current_vel = 0
@@ -61,7 +61,8 @@ def latGravSurface(lat):
         return ge*( (1 + 0.001931851353*latSinSquare)/ math.sqrt(1 - 0.0066943800229*latSinSquare))
 
 def gravVal(h):
-    lat = 35.3467755
+    # lat = 35.3467755
+    lat = 32.943710 # for t4
     mToFt = 3.28084
     a = 6378.137    # Equatorial radius [km]
     b = 6356.7523   # Polar radius [km]

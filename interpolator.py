@@ -3,6 +3,8 @@ def interpolate(data1, data1_timestamps, data1_packets, data2, data2_timestamps,
     end_packet = max(data1_packets[-1], data2_packets[-1])
     num_packets = end_packet - start_packet
 
+    # packets = list(set(data1_packets + data2))
+
     data1_interp = []
     data2_interp = []
     data1_timestamps_interp = []
@@ -26,6 +28,43 @@ def interpolate(data1, data1_timestamps, data1_packets, data2, data2_timestamps,
             data1_timestamps_interp.append(data1_timestamps[closestNeighbor(data2_packets.index(start_packet + i))])
 
     return data1_interp, data1_timestamps_interp, data2_interp, data2_timestamps_interp
+
+def interpolateAccel(accel, accel_timestamps, accel_packets, data2, data2_timestamps, data2_packets):
+    start_packet = min(accel_packets[0], data2_packets[0])
+    end_packet = max(accel_packets[-1], data2_packets[-1])
+    num_packets = int(end_packet - start_packet)
+
+    # packets = list(set(data1_packets + data2))
+
+    accel_interp = [[],[],[]]
+    data2_interp = []
+    accel_timestamps_interp = []
+    data2_timestamps_interp = []
+
+    for i in range(num_packets):
+        if start_packet + i in accel_packets and start_packet + i in data2_packets: # if packet exists for both data sets
+            accel_interp[0].append(accel[0][i])
+            accel_interp[1].append(accel[1][i])
+            accel_interp[2].append(accel[2][i])
+            accel_timestamps_interp.append(accel_timestamps[i])
+            data2_interp.append(data2[i])
+            data2_timestamps_interp.append(data2_timestamps[i])
+        elif start_packet + i in accel_packets: # if packet is in data set 1 only
+            accel_interp[0].append(accel[0][i])
+            accel_interp[1].append(accel[1][i])
+            accel_interp[2].append(accel[2][i])
+            accel_timestamps_interp.append(accel_timestamps[i])
+            data2_interp.append(data2[closestNeighbor(accel_packets.index(start_packet + i), data2_timestamps)])
+            data2_timestamps_interp.append(data2_timestamps[closestNeighbor(accel_packets.index(start_packet + i), data2_timestamps)])
+        elif start_packet + 1 in data2_packets:  # if packet is in data set 2 only
+            data2_interp.append(data2[i])
+            data2_timestamps_interp.append(data2_timestamps[i])
+            accel_interp[0].append(accel[0][closestNeighbor(data2_packets.index(start_packet + i), accel_timestamps)])
+            accel_interp[1].append(accel[0][closestNeighbor(data2_packets.index(start_packet + i), accel_timestamps)])
+            accel_interp[2].append(accel[0][closestNeighbor(data2_packets.index(start_packet + i), accel_timestamps)])
+            accel_timestamps_interp.append(accel_timestamps[closestNeighbor(data2_packets.index(start_packet + i), accel_timestamps)])
+
+    return accel_interp, accel_timestamps_interp, data2_interp, data2_timestamps_interp
 
 # returns index of closest neighbor based on timestamps
 def closestNeighbor(target_timestamp, timestamps):
